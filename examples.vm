@@ -1,0 +1,353 @@
+push constant 1----------------------------
+
+@1
+D=A
+@SP
+AM = M+1
+M = D
+
+// get data to D register
+// set A to new stack position
+// set M to D
+
+push argument 1------------------------------
+
+@ARG
+D = M
+D = D + 1
+A = D
+D = M
+@SP
+AM = M+1
+M = D
+
+push argument 5------------------------
+
+@ARG
+D = M
+@5"
+D = D + A
+A = D
+D = M
+
+@SP
+AM = M+1
+M = D
+
+push this 1-------------------------
+
+@THIS
+D = M
+D = D + 1
+A = D
+D = M
+
+@SP
+AM = M+1
+M = D
+
+push pointer 1-------------------------
+
+@3 // pointer
+A = A + 1   // if value == 1
+D = M
+
+@SP
+AM = M+1
+M = D
+
+
+
+push static n ------------------------------
+
+@s  // static address 16 + n
+D = M
+
+@SP
+AM = M + 1
+M = D
+
+////////////////////////////////////////////
+
+pop local 0---------------------------------
+
+@SP                                         |
+M = M - 1   // update SP value              |
+A = M + 1   // go to top of the stack       |   -> always constant
+D = M       // get the value of the stack   |
+M = 0       // delete the value             |
+
+@LCL
+A = M       // go to local
+            // no need for incrementation
+M = D       // update local variable value
+
+
+pop local 1 --------------------------------------
+
+@SP                                         |
+M = M - 1   // update SP value              |
+A = M + 1   // go to top of the stack       |   -> always constant
+D = M       // get the value of the stack   |
+M = 0       // delete the value             |
+
+@LCL
+A = M
+A = A + 1
+M = D
+
+pop local 2 --------------------------------------
+
+@2
+D = A
+@LCL
+D = M + D   // go to local 2
+
+@R13
+M = D       // save local 2 location to R13
+
+@SP                                         |
+M = M - 1   // update SP value              |
+A = M + 1   // go to top of the stack       |   -> always constant
+D = M       // get the value of the stack   |
+M = 0       // delete the value             |
+
+@R13
+A = M       // remember local 2's location
+M = D       // set it to stack's value
+
+pop this 0 -----------------------------------------------------
+
+@SP                                         |
+M = M - 1   // update SP value              |
+A = M + 1   // go to top of the stack       |   -> always constant
+D = M       // get the value of the stack   |
+M = 0       // delete the value             |
+
+@THIS
+A = M       // go to THIS's address
+M = D       // update it
+
+
+pop this 1 -------------------------------------------------------
+
+@SP                                         |
+M = M - 1   // update SP value              |
+A = M + 1   // go to top of the stack       |   -> always constant
+D = M       // get the value of the stack   |
+M = 0       // delete the value             |
+
+@THIS
+A = M + 1   // go to THIS's address
+M = D       // update it
+
+
+pop pointer 0 ---------------------------------------------
+
+@SP                                         |
+M = M - 1   // update SP value              |
+A = M + 1   // go to top of the stack       |   -> always constant
+D = M       // get the value of the stack   |
+M = 0       // delete the value             |
+
+@3
+
+pop static n ---------------------------------
+
+@SP                                         |
+M = M - 1   // update SP value              |
+A = M + 1   // go to top of the stack       |   -> always constant
+D = M       // get the value of the stack   |
+M = 0       // delete the value             |
+
+@(n+16)
+M = D       // update local variable value
+
+////////////////////////////////////////////
+
+Add --------------------------------------------------------
+
+@SP
+M = M - 1
+A = M + 1
+D = M
+M = 0
+A = A - 1
+M = D + M // only this line changes for + - & |
+
+Not ----------------------------------------------------------
+
+@SP
+A = M
+M = !M
+
+Eq -----------------------------------------------------------
+
+@SP
+M = M - 1   |
+A = M + 1   |
+D = M       |   -> same with other binary arithmetic operations
+M = 0       |
+A = A - 1   |
+D = D - M   // calculate the difference between top - bottom stack values
+@EQ.IF.0
+D;JEQ
+@SP
+M = 0   # false
+@EQ.IF.1
+0;JMP
+(EQ.IF.0)
+@SP
+M = -1 // true
+(EQ.IF.1)
+
+
+/////////////////////////////////
+chapter 8:
+
+label merhaba --------------------
+(merhaba)
+
+
+goto merhaba ---------------------
+@merhaba
+0;JMP
+
+
+if-goto merhaba -------------------
+
+@SP                                         |
+M = M - 1   // update SP value              |
+A = M + 1   // go to top of the stack       |   -> always constant
+D = M       // get the value of the stack   |
+M = 0       // delete the value             |
+
+@merhaba
+!D;JEQ      // if anything but 0, jump
+
+
+/////////////////////////////////////
+
+call f 2 ------------------------------
+
+@RETURN.ADDRESS.0
+D = A
+@SP
+AM = M + 1
+M = D
+
+@LCL
+D = M
+@SP
+AM = M + 1
+M = D
+
+@ARG
+D = M
+@SP
+AM = M + 1
+M = D
+
+@THIS
+D = M
+@SP
+AM = M + 1
+M = D
+
+@THAT
+D = M
+@SP
+AM = M + 1
+M = D
+
+@7          // (@(arg count + 5))
+D = A
+@SP
+D = M - D
+@ARG
+M = D
+
+@SP
+D = M
+@LCL
+M = D
+
+@F          #@name of the function
+0;JMP
+(RETURN.ADDRESS.0)
+
+function f 2 -----------------------
+@FUNCTION.F.END
+0;JMP               // skip the function if it is not called
+(f)
+for _ in range(n):
+    @0
+    D=A
+    @SP
+    AM = M+1
+    M = D
+
+return ------------------------------
+
+@LCL
+D = M
+@R14
+M = D       // save lcl to a temp variable
+
+@5
+D = A
+@R14
+D = M - D   // find return address
+A = D
+D = M
+@R15
+M = D       // save return address to another temp variable
+
+@SP                                         |
+A = M       // go to top of the stack       |   -> always constant
+D = M       // get the value of the stack   |
+
+@ARG
+A = M
+M = D       // set argument 0 to function's return
+
+@ARG
+D = M
+@SP
+M = D   // set SP = ARG + 1 (not + 1 because of our stack mechanics)
+
+@R14
+A = M - 1
+D = M
+@THAT
+M = D       // THAT = *(FRAME-1)
+
+@2
+D = A
+@R14
+A = M - D
+D = M
+@THIS
+M = D       // THIS = *(FRAME-2)
+
+@3
+D = A
+@R14
+A = M - D
+D = M
+@ARG
+M = D       // ARG = *(FRAME-1)
+
+@4
+D = A
+@R14
+A = M - D
+D = M
+@LCL
+M = D        // LCL = *(FRAME-1)
+
+@R15
+A = M
+0;JMP       // go back to return_address
+(FUNCTION.F.END)
+

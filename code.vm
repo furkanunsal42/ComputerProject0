@@ -1,0 +1,40 @@
+function main 0
+
+push constant 20
+push constant 3
+
+call mult 2
+
+pop static 0
+
+return
+
+function mult 1
+push constant 0
+pop local 0         // set sum to 0
+
+label loop
+push local 0
+push argument 0
+add
+pop local 0         // sum += argument0
+
+
+push argument 1
+push constant 1
+sub
+pop argument 1      // argument1--
+
+push argument 1
+push constant 0
+gt                  // if argument1 > 0
+
+if-goto loop        // goto loop
+
+push local 0
+push constant 0
+gt
+
+push local 0
+return
+
