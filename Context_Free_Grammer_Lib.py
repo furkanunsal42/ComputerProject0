@@ -102,17 +102,6 @@ def parse(line):
         print("not all tokens was identified")
     return tokens
 
-# (keyword, symbol, identifier, int_constant, str_constant) are pre-defined
-grammer = {
-    "var_name": [["identifier"], ["int_constant"]],
-    "subroutine_name": [["identifier"]],
-    "class_name": [["identifier"]],
-
-    "temp1": [["var_name", "class_name"]],
-    "temp2": [["var_name", "symbol:=", "int_constant"]],
-    "temp3": [["temp1", "symbol:=", "temp2"]]
-}
-
 
 # temporarily same as is_token_valid for now
 def is_primitive_token(token):
@@ -166,23 +155,86 @@ def expend_terminal(terminal):
             if is_primitive_token(element):
                 # as iterating through definition
                 # if element it already primitive then append it to extended_terminals directly
-                extended_terminals.append(element)
+
+                # extended_terminals can be in three different state and each require its own action
+                # 1- it can be empty
+                # 2- it can be consist of only one definition
+                # 3- it can consist of several definitions
+                # empty:
+                if not extended_terminals:
+                    extended_terminals.append(element)
+
+                else:
+                    # decide between single and multiple definition
+                    is_multiple_definition = False
+                    for elem in extended_terminals:
+                        if type(elem) == list:
+                            is_multiple_definition = True
+
+                    # single definition
+                    if not is_multiple_definition:
+                        extended_terminals.append(element)
+
+                    # multiple definition
+                    else:
+                        for defin in extended_terminals:
+                            defin.append(element)
+
             else:
                 # if element is a complex terminal than expend it through recursive call of this function
                 # and append to extended_terminals
                 extended_element = expend_terminal(element)
-                extended_terminals.append(extended_element)
 
-        raw_definitions.append(extended_terminals)
+                # duplicate extended terminal for each different definition
+                # if there is more than one definition in extended element
+                for i, _ in enumerate(extended_element):    # for each definition in extended element
+                    if i != 0:
+                        etx_terminal_len = len(extended_terminals)
+                        for i in range(etx_terminal_len):     # duplicate extended_terminals
+                            extended_terminals.append(extended_terminals[i].copy())
 
+                # append extended_element's altering element to each extended_terminals definition
+                # since we will add element during this for loop we have to save ext_terminals' length at the begining
+                ext_terminal_len = len(extended_terminals)
+                for i in range(ext_terminal_len):
+                    ext_len = len(extended_element)
+                    for elem in extended_element[i % ext_len]:
+                        extended_terminals[i].append(elem)
+                        """
+                    if len(extended_element[i % ext_len]) != 1:
+                        print("CAUTION ERROR!")
+                        """
+                # if extended_terminals empty the above code will not function
+                # so here we will instantiate extended_terminals
+                if extended_terminals == []:
+                    for defin in extended_element:
+                        extended_terminals.append(defin.copy())
+
+        is_ext_terminals_multi_definitional = False
+        for element in extended_terminals:
+            if type(element) == list:
+                is_ext_terminals_multi_definitional = True
+        if is_ext_terminals_multi_definitional:
+            for line in extended_terminals:
+                raw_definitions.append(line)
+        else:
+            raw_definitions.append(extended_terminals)
     # different permutations can occur while expending elements
     # they are added to extended_terminals as list of lists so they have to be expended after the process
 
     return raw_definitions # should be results
 
 
+# (keyword, symbol, identifier, int_constant, str_constant) are pre-defined
+grammer = {
+    "var_name": [["symbol:*", "identifier"], ["int_constant"]],
+    "subroutine_name": [["identifier"]],
+    "class_name": [["identifier"]],
 
-
+    "temp1": [["var_name", "class_name"]],
+    "temp2": [["var_name", "symbol:=", "int_constant"]],
+    "temp3": [["temp1", "symbol:=", "temp2"]]
+}
 
 for terminal in grammer:
     print(expend_terminal(terminal))
