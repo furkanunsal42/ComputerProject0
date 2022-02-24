@@ -67,17 +67,17 @@ def is_token_valid(token):
                "*", "/", "&", "|", "<", ">", "=", "~"]
 
     if token in keywords:
-        return "KEYWORD"
+        return "keyword:{}".format(token)
     elif token in symbols:
-        return "SYMBOL"
+        return "symbol:{}".format(token)
     elif is_int_constant(token):
-        return "INT"
+        return "int_constant"
     elif is_string_constant(token):
-        return "STRING"
-    elif is_semi_string(token):
-        return "SEMI_STRING"
+        return "str_constant"
+    # elif is_semi_string(token):
+        # return "SEMI_STRING"
     elif is_identifier(token):
-        return "IDENTIFIER"
+        return "identifier"
     else:
         return False
 
@@ -143,6 +143,11 @@ def expend_terminal(terminal):
     # each of these permutations of definitions will be stored as a list in "raw_definitions"
     raw_definitions = []
 
+    # for terminals that has logic operations such as (terminal | terminal2)*
+    # since they are not found in grammer table just return them in their pure format
+    if terminal not in grammer:
+        return [[terminal]]
+
     for definition in grammer[terminal]:  # a definition of terminal
         # for each definition must be expended differently and must be appended to raw_definitions
 
@@ -187,9 +192,9 @@ def expend_terminal(terminal):
 
                 # duplicate extended terminal for each different definition
                 # if there is more than one definition in extended element
+                etx_terminal_len = len(extended_terminals)
                 for i, _ in enumerate(extended_element):    # for each definition in extended element
                     if i != 0:
-                        etx_terminal_len = len(extended_terminals)
                         for i in range(etx_terminal_len):     # duplicate extended_terminals
                             extended_terminals.append(extended_terminals[i].copy())
 
@@ -197,13 +202,14 @@ def expend_terminal(terminal):
                 # since we will add element during this for loop we have to save ext_terminals' length at the begining
                 ext_terminal_len = len(extended_terminals)
                 for i in range(ext_terminal_len):
-                    ext_len = len(extended_element)
-                    for elem in extended_element[i % ext_len]:
+                    ext_elem_len = len(extended_element)
+                    repeat_count = ext_terminal_len / ext_elem_len
+                    # print(i)
+                    # extended terminals -> 012345 (i%ext_elem_len) 012345 int(i / repeat_count)
+                    # extended elements ->  012012                  001122
+                    for elem in extended_element[int(i / repeat_count)]:
                         extended_terminals[i].append(elem)
-                        """
-                    if len(extended_element[i % ext_len]) != 1:
-                        print("CAUTION ERROR!")
-                        """
+
                 # if extended_terminals empty the above code will not function
                 # so here we will instantiate extended_terminals
                 if extended_terminals == []:
@@ -225,16 +231,60 @@ def expend_terminal(terminal):
     return raw_definitions # should be results
 
 
+def display_definitions(expended_terminal):
+    for definition in expended_terminal:
+        print(definition)
+
+
 # (keyword, symbol, identifier, int_constant, str_constant) are pre-defined
 grammer = {
-    "var_name": [["symbol:*", "identifier"], ["int_constant"]],
+    "var_name": [["identifier"], ["int_constant"], ["str_constant"]],
     "subroutine_name": [["identifier"]],
     "class_name": [["identifier"]],
 
-    "temp1": [["var_name", "class_name"]],
-    "temp2": [["var_name", "symbol:=", "int_constant"]],
-    "temp3": [["temp1", "symbol:=", "temp2"]]
+    "type": [["keyword:int"], ["keyword:char"], ["keyword:boolean"]],
+    "var_dec": [["type", "var_name", "symbol:;"],
+                ["type", "var_name", "symbol:=", "int_constant", "symbol:;"]]
 }
 
+with open("examples.jack", "r") as f:
+    for terminal in grammer:
+        grammer[terminal] = expend_terminal(terminal)
+    lines = f.readlines()
+    for line_index, line in enumerate(lines):
+        tokens = parse(line)
+        for i in range(len(tokens)):
+            tokens[i] = is_token_valid(tokens[i])
+        found = False
+        for terminal in grammer:
+            for definition in grammer[terminal]:
+                if len(definition) != len(tokens):
+                    continue
+                else:
+                    found = True
+                    for i in range(len(tokens)):
+                        if tokens[i] != definition[i]:
+                            found = False
+                    if found:
+                        print(terminal)
+                        break
+        if not found:
+            print("compiler error at line {}".format(line_index))
+# prints parsed input
+""" 
+with open("examples.jack", "r") as f:
+    lines = f.readlines()
+    for line in lines:
+        tokens = parse(line)
+        for token in tokens:
+            type = is_token_valid(token)
+            print(type, end=" ")
+        print()
+"""
+
+# prints extended version of all grammer rules
+""" 
 for terminal in grammer:
-    print(expend_terminal(terminal))
+    print(terminal)
+    display_definitions(expend_terminal(terminal))
+"""
