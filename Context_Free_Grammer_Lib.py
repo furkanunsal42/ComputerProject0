@@ -74,8 +74,8 @@ def is_token_valid(token):
         return "int_constant"
     elif is_string_constant(token):
         return "str_constant"
-    # elif is_semi_string(token):
-        # return "SEMI_STRING"
+    elif is_semi_string(token):
+        return "SEMI_STRING"
     elif is_identifier(token):
         return "identifier"
     else:
@@ -242,6 +242,95 @@ def extend_grammer(grammer):
     return grammer
 
 
+def is_token_valid_rule(token):
+    keywords = ["class", "constructor", "function", "method",
+                "field", "static", "var", "int", "char", "boolean",
+                "void", "true", "false", "null", "this", "let", "do",
+                "if", "else", "while", "return"]
+    symbols = ["(", ")", "*", "|", "?"]
+
+    if token in keywords:
+        return "keyword:{}".format(token)
+    elif token in symbols:
+        return "symbol:{}".format(token)
+    elif is_int_constant(token):
+        return "int_constant"
+    elif is_string_constant(token):
+        return "str_constant"
+    elif is_identifier(token):
+        return "identifier"
+    else:
+        return False
+
+
+def rule_parse(line):
+    line = purify_line(line)
+    tokens = []
+    current_word = ""
+    for letter in line:
+        # if token was valid but now it became invalid, than add it to tokens
+        if is_token_valid_rule(current_word + letter):
+            current_word += letter
+        elif is_token_valid_rule(current_word):
+            tokens.append(current_word)
+            current_word = ""
+            if is_token_valid_rule(letter):
+                current_word += letter
+    if is_token_valid_rule(current_word):
+        tokens.append(current_word)
+        current_word = ""
+    if current_word != "":
+        print("not all tokens was identified")
+    return tokens
+
+
+def is_token_fits(token, rule):
+    # (var_name | str_name)  -> ["var_name", "str_name"] type:' '
+    # (var_name | str_name)? -> ["var_name", "str_name"] type:'?'
+    # (var_name | str_name)* -> ["var_name", "str_name"] type:'*'
+
+    # (var_name | (var_name|int_constant)*)? -> ["var_name", "(var_name|int_constant)*"] type:?
+
+    # is_fit -> does token fit the rule?
+    # is_error -> is this situation an error?
+    # is_force_skip -> is next token must be a different rule
+    # output [is_fit, is_error, is_force_skip]
+
+    abstract_token = is_token_valid(token)
+
+    parsed_rule = []
+    next_word = ""
+    in_brackets = False
+    brackets_just_ended = False
+    for rule_token in rule_parse(rule):
+        if rule_token == '(':
+            in_brackets = True
+            next_word += rule_token
+
+        elif rule_token == ')':
+            in_brackets = False
+            brackets_just_ended = True
+            next_word += rule_token
+
+        elif in_brackets:
+            next_word += rule_token
+
+        elif brackets_just_ended:
+            if rule_token in ['*', '?']:
+                next_word += rule_token
+            parsed_rule.append(next_word)
+            next_word = ""
+            brackets_just_ended = False
+
+        elif rule_token not in ['|', '*', '?'] and not in_brackets:
+            parsed_rule.append(rule_token)
+
+        elif rule_token in ['*', '?'] and not in_brackets:
+            parsed_rule[-1] = "({}){}".format(parsed_rule[-1], rule_token)
+
+    print(parsed_rule)
+
+
 def identify_token_group(tokens):
     # this function identifies the terminal of given group of tokens
     # input: int name = 12; -> output: var_dec
@@ -283,6 +372,8 @@ grammer = {
     "var_dec": [["type", "var_name", "symbol:;"],
                 ["type", "var_name", "symbol:=", "value", "symbol:;"]]
 }
+
+is_token_fits("keyword:int", "var_name?|int_constant|(str_constant|int_constant?)*")
 
 with open("examples.jack", "r") as f:
     grammer = extend_grammer(grammer)
