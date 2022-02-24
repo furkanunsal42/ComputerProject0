@@ -236,55 +236,61 @@ def display_definitions(expended_terminal):
         print(definition)
 
 
+def extend_grammer(grammer):
+    for terminal in grammer:
+        grammer[terminal] = expend_terminal(terminal)
+    return grammer
+
+
+def identify_token_group(tokens):
+    # this function identifies the terminal of given group of tokens
+    # input: int name = 12; -> output: var_dec
+
+    abstract_tokens = []
+    for token in tokens:
+        abstract_tokens.append(is_token_valid(token))
+
+    for terminal in grammer:
+        for definition in grammer[terminal]:
+            # for each definition for each terminal in grammer
+            # ignore all definitions whose length do not match
+            if len(definition) != len(abstract_tokens):
+                continue
+            else:
+                # if length are matching compare the definition and group
+                found = True
+                for i in range(len(abstract_tokens)):
+                    if abstract_tokens[i] != definition[i]:
+                        found = False
+                if found:
+                    # if all elements are matching than return terminal
+                    return terminal
+
+    # if nothing found return none
+    return None
+
+
 # (keyword, symbol, identifier, int_constant, str_constant) are pre-defined
 grammer = {
+    "blank_line": [[]],
     "var_name": [["identifier"], ["int_constant"], ["str_constant"]],
     "subroutine_name": [["identifier"]],
     "class_name": [["identifier"]],
 
     "type": [["keyword:int"], ["keyword:char"], ["keyword:boolean"]],
+    "value": [["keyword:true"], ["keyword:false"], ["int_constant"], ["str_constant"], ["keyword:null"]],
+
     "var_dec": [["type", "var_name", "symbol:;"],
-                ["type", "var_name", "symbol:=", "int_constant", "symbol:;"]]
+                ["type", "var_name", "symbol:=", "value", "symbol:;"]]
 }
 
 with open("examples.jack", "r") as f:
-    for terminal in grammer:
-        grammer[terminal] = expend_terminal(terminal)
+    grammer = extend_grammer(grammer)
     lines = f.readlines()
     for line_index, line in enumerate(lines):
         tokens = parse(line)
-        for i in range(len(tokens)):
-            tokens[i] = is_token_valid(tokens[i])
-        found = False
-        for terminal in grammer:
-            for definition in grammer[terminal]:
-                if len(definition) != len(tokens):
-                    continue
-                else:
-                    found = True
-                    for i in range(len(tokens)):
-                        if tokens[i] != definition[i]:
-                            found = False
-                    if found:
-                        print(terminal)
-                        break
-        if not found:
-            print("compiler error at line {}".format(line_index))
-# prints parsed input
-""" 
-with open("examples.jack", "r") as f:
-    lines = f.readlines()
-    for line in lines:
-        tokens = parse(line)
-        for token in tokens:
-            type = is_token_valid(token)
-            print(type, end=" ")
-        print()
-"""
-
-# prints extended version of all grammer rules
-""" 
-for terminal in grammer:
-    print(terminal)
-    display_definitions(expend_terminal(terminal))
-"""
+        terminal = identify_token_group(tokens)
+        if not terminal:
+            print("compiler error at line " + str(line_index))
+        else:
+            print(terminal)
