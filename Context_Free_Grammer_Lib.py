@@ -117,15 +117,15 @@ def is_primitive_token(token):
                "*", "/", "&", "|", "<", ">", "=", "~"]
 
     if token in ["keyword:"+keyword for keyword in keywords]:
-        return "KEYWORD"
+        return token
     elif token in ["symbol:"+symbol for symbol in symbols]:
-        return "SYMBOL"
+        return token
     elif token == "int_constant":
-        return "INT"
+        return token
     elif token == "str_constant":
-        return "STRING"
+        return token
     elif token == "identifier":
-        return "IDENTIFIER"
+        return token
     else:
         return False
 
@@ -247,18 +247,24 @@ def is_token_valid_rule(token):
                 "field", "static", "var", "int", "char", "boolean",
                 "void", "true", "false", "null", "this", "let", "do",
                 "if", "else", "while", "return"]
-    symbols = ["(", ")", "*", "|", "?"]
+    symbols = ["{", "}", "(", ")", "[", "]", ".", ",", ";", "+", "-",
+               "*", "/", "&", "|", "<", ">", "=", "~"]
+    symbols_rule = ["(", ")", "*", "|", "?"]
 
-    if token in keywords:
-        return "keyword:{}".format(token)
-    elif token in symbols:
-        return "symbol:{}".format(token)
-    elif is_int_constant(token):
+    if len(token) == 0:
+        return False
+    if token in [("keyword:"+keyword)[:len(token)] for keyword in keywords]:
+        return token
+    elif token in [("symbol:"+symbol)[:len(token)] for symbol in symbols]:
+        return token
+    elif token == "int_constant"[:len(token)]:
         return "int_constant"
-    elif is_string_constant(token):
+    elif token == "str_constant"[:len(token)]:
         return "str_constant"
-    elif is_identifier(token):
+    elif token == "identifier"[:len(token)]:
         return "identifier"
+    elif token in symbols_rule:
+        return "grammer_symbols"
     else:
         return False
 
@@ -272,7 +278,8 @@ def rule_parse(line):
         if is_token_valid_rule(current_word + letter):
             current_word += letter
         elif is_token_valid_rule(current_word):
-            tokens.append(current_word)
+            if current_word != "":
+                tokens.append(current_word)
             current_word = ""
             if is_token_valid_rule(letter):
                 current_word += letter
@@ -281,33 +288,28 @@ def rule_parse(line):
         current_word = ""
     if current_word != "":
         print("not all tokens was identified")
-    return tokens
 
-
-def is_token_fits(token, rule):
     # (var_name | str_name)  -> ["var_name", "str_name"] type:' '
     # (var_name | str_name)? -> ["var_name", "str_name"] type:'?'
     # (var_name | str_name)* -> ["var_name", "str_name"] type:'*'
 
     # (var_name | (var_name|int_constant)*)? -> ["var_name", "(var_name|int_constant)*"] type:?
 
-    # is_fit -> does token fit the rule?
-    # is_error -> is this situation an error?
-    # is_force_skip -> is next token must be a different rule
-    # output [is_fit, is_error, is_force_skip]
-
-    abstract_token = is_token_valid(token)
-
     parsed_rule = []
+    type = 's'
     next_word = ""
     in_brackets = False
     brackets_just_ended = False
-    for rule_token in rule_parse(rule):
+    for index, rule_token in enumerate(tokens):
         if rule_token == '(':
+            if index == 0:
+                continue
             in_brackets = True
             next_word += rule_token
 
         elif rule_token == ')':
+            if index == len(tokens)-1 or (index == len(tokens)-2 and tokens[-1] in ['*', '?']):
+                continue
             in_brackets = False
             brackets_just_ended = True
             next_word += rule_token
@@ -326,9 +328,72 @@ def is_token_fits(token, rule):
             parsed_rule.append(rule_token)
 
         elif rule_token in ['*', '?'] and not in_brackets:
-            parsed_rule[-1] = "({}){}".format(parsed_rule[-1], rule_token)
+            if tokens[index-1] == ')':
+                type = rule_token
+            else:
+                parsed_rule[-1] = "({}){}".format(parsed_rule[-1], rule_token)
 
+    if brackets_just_ended:
+        parsed_rule.append(next_word)
+
+    return parsed_rule, type
+
+
+def is_token_fits(token, rule):
+    # is_fit -> does token fit the rule?
+    # is_error -> is this situation an error?
+    # is_force_skip -> is next token must be a different rule
+    # output [is_fit, is_error, is_force_skip]
+
+    # rule can be a single terminal or a logic expression
+    # we need to parse the rule first then evaluate it
+
+    # rule parsing *****
+    parsed_rule, type = rule_parse(rule)
     print(parsed_rule)
+    abstract_token = is_primitive_token(token)
+
+    # rule is not an expression:
+    if parsed_rule[0][0] != '(' and len(parsed_rule) == 1:
+        # output [is_fit, is_error, is_force_skip]
+        if abstract_token == is_token_valid_rule(parsed_rule[0]):
+            return [True, False, True]
+        else:
+            return [False, True, True]
+
+    # rule is an expression:
+    else:
+        is_fit = False
+        for option in parsed_rule:
+            # even if one option in rule fits then is_fit is true
+            if is_token_fits(token, option)[0]:
+                is_fit = True
+
+        if type == '*':
+
+            # fit   error  skip  / fit    error skip
+            # true, false, false / false, true, true
+            is_error = False
+            is_force_skip = not is_fit
+            return[is_fit, is_error, is_force_skip]
+
+        elif type == '?':
+
+            # fit   error  skip  / fit    error skip
+            # true, false, true / false, true, true
+            is_error = False
+            is_force_skip = True
+            return[is_fit, is_error, is_force_skip]
+
+        elif type == "s":
+
+            # fit   error  skip  / fit    error skip
+            # true, false, true / false, true, true
+            is_error = not is_fit
+            is_force_skip = True
+            return[is_fit, is_error, is_force_skip]
+
+
 
 
 def identify_token_group(tokens):
@@ -373,7 +438,8 @@ grammer = {
                 ["type", "var_name", "symbol:=", "value", "symbol:;"]]
 }
 
-is_token_fits("keyword:int", "var_name?|int_constant|(str_constant|int_constant?)*")
+result = is_token_fits("keyword:int", "(keyword:int|int_constant)")
+print(result)
 
 with open("examples.jack", "r") as f:
     grammer = extend_grammer(grammer)
