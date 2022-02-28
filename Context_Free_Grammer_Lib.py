@@ -130,12 +130,6 @@ def is_primitive_token(token):
         return False
 
 
-def clear_definitions(definitions):
-    #  input -> [[[['identifier'], ['int_constant']], [['identifier']]]]
-    # output -> [["identifier", "int_constant"], ["identifier", "identifier"]]
-    pass
-
-
 def expend_terminal(terminal):
 
     # there may be different permutations of one terminal and that may cause multiple definitions for terminals
@@ -251,6 +245,8 @@ def is_token_valid_rule(token):
                "*", "/", "&", "|", "<", ">", "=", "~"]
     symbols_rule = ["(", ")", "*", "|", "?"]
 
+    symbols_hash = ["#*", "#?"]
+
     if len(token) == 0:
         return False
     if token in [("keyword:"+keyword)[:len(token)] for keyword in keywords]:
@@ -265,6 +261,8 @@ def is_token_valid_rule(token):
         return "identifier"
     elif token in symbols_rule:
         return "grammer_symbols"
+    elif token in [hash_symbol[len(token)] for hash_symbol in symbols_hash]:
+        return "hash_symbol"
     else:
         return False
 
@@ -318,16 +316,16 @@ def rule_parse(line):
             next_word += rule_token
 
         elif brackets_just_ended:
-            if rule_token in ['*', '?']:
+            if rule_token in ['*', '?', '#*', '#?']:
                 next_word += rule_token
             parsed_rule.append(next_word)
             next_word = ""
             brackets_just_ended = False
 
-        elif rule_token not in ['|', '*', '?'] and not in_brackets:
+        elif rule_token not in ['|', '*', '?', '#*', '#?'] and not in_brackets:
             parsed_rule.append(rule_token)
 
-        elif rule_token in ['*', '?'] and not in_brackets:
+        elif rule_token in ['*', '?', '#*', '#?'] and not in_brackets:
             if tokens[index-1] == ')':
                 type = rule_token
             else:
@@ -350,7 +348,7 @@ def is_token_fits(token, rule):
 
     # rule parsing *****
     parsed_rule, rule_type = rule_parse(rule)
-    print(parsed_rule)
+    # print(parsed_rule)
     abstract_token = is_primitive_token(token)
 
     is_fit = False
@@ -359,8 +357,6 @@ def is_token_fits(token, rule):
         if type(option) == str:
             if option == abstract_token:
                 is_fit = True
-            else:
-                is_fit = False
 
         elif is_token_fits(token, option)[0]:
             is_fit = True
@@ -382,9 +378,15 @@ def is_token_fits(token, rule):
         #                             if it fails here, have to fit next check
 
         inc_rule = True             # always increment to next rule
-        inc_token = not is_fit      # if token doesn't fit don't increment token, if it fit increment token
+        inc_token = is_fit      # if token doesn't fit don't increment token, if it fit increment token
 
         return[is_fit, must_fit_next, inc_rule, inc_token]
+
+    elif rule_type == '#*':
+        pass
+
+    elif rule_type == '#?':
+        pass
 
     elif rule_type == 's':
         # output [is_fit, must_fit_next_rule, increment_rule, increment_token]
@@ -410,16 +412,32 @@ def identify_token_group(tokens):
             # for each definition for each terminal in grammer
             # ignore all definitions whose length do not match
             if len(definition) != len(abstract_tokens):
-                continue
-            else:
-                # if length are matching compare the definition and group
-                found = True
-                for i in range(len(abstract_tokens)):
-                    if abstract_tokens[i] != definition[i]:
-                        found = False
-                if found:
-                    # if all elements are matching than return terminal
-                    return terminal
+                # continue
+                pass
+            #else:
+            # if length are matching compare the definition and group
+            found = True
+            index_rule = index_token = 0
+            prev_must_fit_next = False
+            while index_token < len(abstract_tokens) and index_rule < len(definition):
+                is_fit, must_fit_next, inc_rule, inc_token = is_token_fits(abstract_tokens[index_token], definition[index_rule])
+
+                if (not is_fit) and prev_must_fit_next:
+                    found = False
+                    break
+
+                if (not inc_token) and (not inc_rule):
+                    found = False
+                    break
+
+                if inc_token:
+                    index_token += 1
+                if inc_rule:
+                    index_rule += 1
+
+            if found and index_token == len(abstract_tokens) and index_rule == len(definition):
+                # if all elements are matching than return terminal
+                return terminal
 
     # if nothing found return none
     return None
@@ -428,7 +446,7 @@ def identify_token_group(tokens):
 # (keyword, symbol, identifier, int_constant, str_constant) are pre-defined
 grammer = {
     "blank_line": [[]],
-    "var_name": [["identifier"], ["int_constant"], ["str_constant"]],
+    "var_name": [["(identifier|str_constant|int_constant)"]],
     "subroutine_name": [["identifier"]],
     "class_name": [["identifier"]],
 
@@ -440,7 +458,7 @@ grammer = {
 }
 
 result = is_token_fits("int_constant", "(str_constant|int_constant)?")
-print(result)
+# print(result)
 
 with open("examples.jack", "r") as f:
     grammer = extend_grammer(grammer)
