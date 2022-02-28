@@ -343,57 +343,58 @@ def is_token_fits(token, rule):
     # is_fit -> does token fit the rule?
     # is_error -> is this situation an error?
     # is_force_skip -> is next token must be a different rule
-    # output [is_fit, is_error, is_force_skip]
+    # output [is_fit, must_fit_next_rule, increment_rule, increment_token]
 
     # rule can be a single terminal or a logic expression
     # we need to parse the rule first then evaluate it
 
     # rule parsing *****
-    parsed_rule, type = rule_parse(rule)
+    parsed_rule, rule_type = rule_parse(rule)
     print(parsed_rule)
     abstract_token = is_primitive_token(token)
 
-    # rule is not an expression:
-    if parsed_rule[0][0] != '(' and len(parsed_rule) == 1:
-        # output [is_fit, is_error, is_force_skip]
-        if abstract_token == is_token_valid_rule(parsed_rule[0]):
-            return [True, False, True]
-        else:
-            return [False, True, True]
-
-    # rule is an expression:
-    else:
-        is_fit = False
-        for option in parsed_rule:
-            # even if one option in rule fits then is_fit is true
-            if is_token_fits(token, option)[0]:
+    is_fit = False
+    for option in parsed_rule:
+        # even if one option in rule fits then is_fit is true
+        if type(option) == str:
+            if option == abstract_token:
                 is_fit = True
+            else:
+                is_fit = False
 
-        if type == '*':
+        elif is_token_fits(token, option)[0]:
+            is_fit = True
 
-            # fit   error  skip  / fit    error skip
-            # true, false, false / false, true, true
-            is_error = False
-            is_force_skip = not is_fit
-            return[is_fit, is_error, is_force_skip]
+    if rule_type == '*':
+        # output [is_fit, must_fit_next_rule, increment_rule, increment_token]
 
-        elif type == '?':
+        must_fit_next = not is_fit  # as long as token fits here it doesn't fit next check,
+        #                             if it fails have to fit next check
 
-            # fit   error  skip  / fit    error skip
-            # true, false, true / false, true, true
-            is_error = False
-            is_force_skip = True
-            return[is_fit, is_error, is_force_skip]
+        inc_rule = not is_fit       # if token doesn't fit increment, if it does fit don't increment rule
+        inc_token = is_fit          # if token doesn't fit don't increment token, if it fit increment token
+        return[is_fit, must_fit_next, inc_rule, inc_token]
 
-        elif type == "s":
+    elif rule_type == '?':
+        # output [is_fit, must_fit_next_rule, increment_rule, increment_token]
 
-            # fit   error  skip  / fit    error skip
-            # true, false, true / false, true, true
-            is_error = not is_fit
-            is_force_skip = True
-            return[is_fit, is_error, is_force_skip]
+        must_fit_next = not is_fit  # if it fits here it may not fit next check,
+        #                             if it fails here, have to fit next check
 
+        inc_rule = True             # always increment to next rule
+        inc_token = not is_fit      # if token doesn't fit don't increment token, if it fit increment token
 
+        return[is_fit, must_fit_next, inc_rule, inc_token]
+
+    elif rule_type == 's':
+        # output [is_fit, must_fit_next_rule, increment_rule, increment_token]
+
+        must_fit_next = True        # independent of next check
+
+        inc_rule = is_fit           # always increment to next rule, if is_fit false raise error
+        inc_token = is_fit          # always increment to next token, if is_fit false raise error
+        #                            (when both inc_rule and inc_token evaluates false it is an immediate error)
+        return[is_fit, must_fit_next, inc_rule, inc_token]
 
 
 def identify_token_group(tokens):
@@ -438,7 +439,7 @@ grammer = {
                 ["type", "var_name", "symbol:=", "value", "symbol:;"]]
 }
 
-result = is_token_fits("keyword:int", "(keyword:int|int_constant)")
+result = is_token_fits("int_constant", "(str_constant|int_constant)?")
 print(result)
 
 with open("examples.jack", "r") as f:
